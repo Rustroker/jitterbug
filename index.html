@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="manifest" href="manifest.json">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Study Tracker Pro v2.3</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --card-bg: #16213e;
+            --item-bg: #0f3460;
+            --primary: #e94560;
+            --text: #ffffff;
+            --text-muted: #a0a0a0;
+            --success: #2ecc71;
+            --warning: #f1c40f;
+            --late: #e67e22;
+            --danger: #e74c3c;
+            --streak: #00d2d3;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            overflow-y: auto; 
+            padding-bottom: 50px;
+        }
+
+        /* --- Header / HUD --- */
+        .hud {
+            padding: 20px;
+            background: rgba(22, 33, 62, 0.95);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .level-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap; 
+        }
+
+        .level-badge {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--warning);
+            text-shadow: 0 0 10px rgba(241, 196, 15, 0.5);
+        }
+        
+        .streak-badge {
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--streak);
+            background: rgba(0, 210, 211, 0.15);
+            padding: 2px 8px;
+            border-radius: 5px;
+            border: 1px solid var(--streak);
+            display: none; 
+        }
+
+        /* XP Transaction Animation */
+        .xp-trans {
+            font-size: 1rem;
+            font-weight: bold;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.5s ease;
+            white-space: nowrap;
+        }
+        .xp-trans.show-gain { color: var(--success); animation: floatUp 2s forwards; }
+        .xp-trans.show-loss { color: var(--danger); animation: floatDown 2s forwards; }
+
+        /* --- Moral Support Text --- */
+        .moral-text {
+            font-size: 0.9rem;
+            font-style: italic;
+            opacity: 0;
+            white-space: nowrap;
+            margin-left: 5px;
+        }
+        
+        .moral-text.show-anim {
+            animation: fadeInFadeOut 4s ease-in-out forwards;
+        }
+
+        .moral-success { color: var(--success); text-shadow: 0 0 5px rgba(46, 204, 113, 0.4); }
+        .moral-late { color: var(--late); }
+        .moral-fail { color: var(--danger); font-weight: bold; text-shadow: 0 0 5px rgba(231, 76, 60, 0.4); }
+
+        @keyframes fadeInFadeOut {
+            0% { opacity: 0; transform: translateX(-10px); }
+            10% { opacity: 1; transform: translateX(0); }
+            80% { opacity: 1; transform: translateX(0); }
+            100% { opacity: 0; transform: translateX(10px); }
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-20px); }
+        }
+        @keyframes floatDown {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(20px); }
+        }
+
+        .btn-settings {
+            background: none;
+            border: 1px solid var(--text-muted);
+            color: var(--text-muted);
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .main-progress-container {
+            height: 25px;
+            background: #000;
+            border-radius: 12px;
+            border: 2px solid #333;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .main-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #e67e22, #e74c3c);
+            width: 0%;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .xp-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            top: 2px;
+            font-size: 14px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        /* --- Controls Area --- */
+        .controls-area {
+            padding: 20px 20px 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-add-day {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+
+        /* --- Scrollable Card Area --- */
+        .scroller-container {
+            overflow-x: auto;
+            white-space: nowrap;
+            display: flex;
+            align-items: flex-start;
+            padding: 20px;
+            min-height: 400px;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .scroller-container::-webkit-scrollbar {
+            height: 8px;
+        }
+        .scroller-container::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+        .scroller-container::-webkit-scrollbar-track {
+            background: #111;
+        }
+
+        .day-card {
+            display: inline-flex;
+            flex-direction: column;
+            width: 90vw;
+            max-width: 400px;
+            min-height: 500px;
+            vertical-align: top;
+            margin-right: 20px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            scroll-snap-align: center;
+            flex-shrink: 0;
+            border: 1px solid rgba(255,255,255,0.1);
+            position: relative;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+
+        .day-card.today-card {
+            border: 2px solid var(--streak);
+            box-shadow: 0 0 20px rgba(0, 210, 211, 0.25);
+        }
+
+        .card-header {
+            padding: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+            position: relative;
+            min-height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .date-title-display {
+            color: var(--primary);
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        .today-card .date-title-display {
+            color: var(--streak);
+        }
+
+        .remove-card-btn {
+            position: absolute;
+            right: 15px;
+            top: 15px;
+            background: transparent;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+        .remove-card-btn:hover { color: var(--danger); }
+
+        .task-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+            max-height: 60vh;
+        }
+
+        .add-task-btn {
+            background: rgba(233, 69, 96, 0.1);
+            border: none;
+            color: var(--primary);
+            padding: 15px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 0 0 20px 20px;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        .add-task-btn:hover { background: rgba(233, 69, 96, 0.3); }
+
+        /* --- Task Item Styling --- */
+        .task-item {
+            background: var(--item-bg);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255,255,255,0.05);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .task-item:active { transform: scale(0.98); }
+
+        .task-item.green-state { border-left: 5px solid var(--success); }
+        .task-item.orange-state { border-left: 5px solid var(--late); }
+        .task-item.yellow-state { border-left: 5px solid var(--warning); }
+        .task-item.red-state { border-left: 5px solid var(--danger); opacity: 0.7; }
+        .task-item.red-state .task-name { text-decoration: line-through; }
+        
+        .task-item.ghost-state {
+            border-left: 5px solid #666;
+            background: #1e1e2f;
+            opacity: 0.5;
+            border: 1px dashed #555;
+            cursor: default;
+        }
+        .task-item.ghost-state .task-name { color: #888; text-decoration: line-through; }
+
+        .item-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .task-info-group {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            margin-right: 10px;
+        }
+
+        .task-name { font-weight: 600; font-size: 1rem; }
+        .task-time { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;}
+        
+        .xp-badge { 
+            font-size: 0.75rem; 
+            background: rgba(0,0,0,0.3); 
+            padding: 2px 6px; 
+            border-radius: 4px;
+            color: var(--primary);
+            align-self: flex-start;
+            margin-bottom: 2px;
+        }
+
+        .item-controls { display: flex; align-items: center; gap: 8px; }
+        
+        .btn-check {
+            background: none;
+            border: 2px solid #444;
+            color: #444;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .btn-check:hover { border-color: var(--success); color: var(--success); }
+        .btn-check.is-checked { background: var(--success); border-color: var(--success); color: white; }
+        .btn-check.is-late { background: var(--late); border-color: var(--late); color: white; }
+
+        .delete-x { color: var(--text-muted); font-weight: bold; padding: 5px; cursor: pointer;}
+        .delete-x:hover { color: var(--danger); }
+
+        .item-bottom {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 5px;
+        }
+
+        .done-input {
+            width: 50px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #444;
+            color: white;
+            border-radius: 4px;
+            padding: 4px;
+            text-align: center;
+        }
+
+        .mini-progress-track {
+            flex-grow: 1;
+            height: 6px;
+            background: #000;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .mini-progress-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* --- Modal Popup --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 350px;
+            border: 1px solid var(--primary);
+            box-shadow: 0 0 25px rgba(233, 69, 96, 0.3);
+        }
+
+        .modal h3 { margin-top: 0; color: var(--primary); margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;}
+
+        .input-row { display: flex; gap: 10px; }
+        .input-group { margin-bottom: 12px; flex: 1; }
+        .input-group label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 3px; }
+        
+        .modal-input {
+            width: 100%;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #444;
+            color: white;
+            border-radius: 5px;
+            font-family: inherit;
+        }
+        
+        input[type="time"]::-webkit-calendar-picker-indicator,
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-incomplete { flex: 1; background: var(--danger); border: none; color: white; padding: 10px; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        .btn-save { flex: 1; background: var(--success); border: none; color: white; padding: 10px; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        .btn-primary { flex: 1; background: var(--primary); border: none; color: white; padding: 10px; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        
+        #reschedule-area {
+            border-top: 1px solid rgba(255,255,255,0.1);
+            margin-top: 15px;
+            padding-top: 15px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="hud">
+        <div class="top-bar">
+            <div class="level-wrapper">
+                <div class="level-badge" id="level-display">Level 1</div>
+                <div class="streak-badge" id="streak-display">Streak x1.2</div>
+                <div id="xp-transaction" class="xp-trans"></div>
+                <div id="moral-display" class="moral-text"></div>
+            </div>
+            <button class="btn-settings" onclick="openSettings()">⚙ Settings</button>
+        </div>
+        <div class="main-progress-container">
+            <div class="main-progress-fill" id="xp-bar"></div>
+            <div class="xp-text" id="xp-text">0 / 200 XP</div>
+        </div>
+    </div>
+
+    <div class="controls-area">
+        <h2 style="margin:0; font-size:1.2rem; color: white;">My Journey</h2>
+        <button class="btn-add-day" onclick="addNextDay()">+ Add Next Day</button>
+    </div>
+
+    <div class="scroller-container" id="card-scroller">
+        </div>
+
+    <div class="modal-overlay" id="edit-modal">
+        <div class="modal">
+            <h3 id="edit-modal-title">Quest Parameters</h3>
+            
+            <div id="standard-edit-fields">
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>XP Reward (Base)</label>
+                        <input type="number" id="modal-xp-reward" class="modal-input">
+                    </div>
+                    <div class="input-group">
+                        <label>Work Capacity</label>
+                        <input type="number" id="modal-work-max" class="modal-input">
+                    </div>
+                </div>
+
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>Start Time</label>
+                        <input type="time" id="modal-start-time" class="modal-input">
+                    </div>
+                    <div class="input-group">
+                        <label>End Time</label>
+                        <input type="time" id="modal-end-time" class="modal-input">
+                    </div>
+                </div>
+
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>Failed Penalty (XP)</label>
+                        <input type="number" id="modal-xp-penalty" class="modal-input">
+                    </div>
+                    <div class="input-group">
+                        <label>Penalty per 10 min</label>
+                        <input type="number" id="modal-delay-penalty" class="modal-input">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Notes</label>
+                    <textarea id="modal-notes" class="modal-input" rows="2"></textarea>
+                </div>
+            </div>
+
+            <div id="reschedule-area">
+                <label style="color:var(--warning); font-weight:bold; font-size:0.9rem;">Task Failed. Reschedule?</label>
+                <div style="display:flex; gap:10px; margin-top:8px;">
+                    <input type="date" id="reschedule-date" class="modal-input">
+                    <button class="btn-primary" onclick="confirmReschedule()">Move Task</button>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button id="btn-mark-incomplete" class="btn-incomplete" onclick="markTaskIncomplete()">Incompleted</button>
+                <button class="btn-save" onclick="saveTaskChanges()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="finish-modal">
+        <div class="modal">
+            <h3>Mission Debrief</h3>
+            <p style="font-size:0.9rem; color: #ccc;">Confirm completion time.</p>
+            
+            <div class="input-group">
+                <label>Time Completed</label>
+                <input type="time" id="modal-done-time" class="modal-input">
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-primary" style="background:#555" onclick="closeFinishModal()">Cancel</button>
+                <button class="btn-primary" onclick="confirmCompletion()">Confirm Completion</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal">
+            <h3>System Settings</h3>
+            <p style="font-size:0.8rem; color:var(--text-muted)">Formula: (Base * 1.1^Level) - Offset</p>
+            
+            <div class="input-group">
+                <label>Base Value</label>
+                <input type="number" id="set-base-req" class="modal-input" onchange="updateSettingsVal()">
+            </div>
+            
+            <div class="input-group">
+                <label>Offset Value</label>
+                <input type="number" id="set-offset-val" class="modal-input" onchange="updateSettingsVal()">
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid #333; margin: 15px 0;">
+            
+            <div class="input-group">
+                <label>Backup Data</label>
+                <button class="btn-primary" onclick="exportData()">Export Save File (.json)</button>
+                <p style="font-size:0.75rem; color:#aaa; margin-top:5px;">
+                    *Downloads "rpg_save.json" to your device.
+                </p>
+            </div>
+
+            <div class="input-group">
+                <label>Restore Data</label>
+                <input type="file" id="import-file" accept=".txt,.json" onchange="importData(this)">
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-primary" onclick="document.getElementById('settings-modal').style.display='none'">Close</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- Global State ---
+    let STATE = {
+        level: 1,
+        currentXP: 0,
+        settings: {
+            baseReq: 200,    
+            offsetVal: 0     
+        },
+        cards: [] 
+    };
+
+    let editingRef = null;
+    let finishingRef = null;
+    let currentStreakMult = 1.0;
+
+    // --- Moral Support Data ---
+    const MORAL_QUOTES = {
+        success: [
+            "Godlike performance.",
+            "You are unstoppable.",
+            "Crushed it.",
+            "A fine addition to your legacy.",
+            "Too easy for you.",
+            "Legendary status approaching.",
+            "Clean execution."
+        ],
+        late: [
+            "Better late than never.",
+            "Focus could be sharper.",
+            "Sloppy, but it counts.",
+            "Don't let it slip again.",
+            "Task done. Speed up next time.",
+            "Barely made it."
+        ],
+        fail: [
+            "Pathetic.",
+            "You failed yourself.",
+            "Is that your best?",
+            "Weakness disgusts me.",
+            "Do better.",
+            "Waste of potential.",
+            "Disappointing."
+        ]
+    };
+
+    // --- Helper: Get Today's Date String Correctly in Local Time ---
+    function getTodayString() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    // --- Initialization ---
+    window.onload = function() {
+        // Reverted: Loading strictly from LocalStorage now
+        loadState();
+        
+        // If first time load, add today
+        if (STATE.cards.length === 0) {
+            initTodayCard();
+        }
+
+        refreshCardTitles();
+        calculateStreak();
+        renderHUD();
+        renderCards();
+        scrollToToday();
+    };
+
+    // --- Data Logic: Cards ---
+    
+    function refreshCardTitles() {
+        const todayStr = getTodayString();
+        STATE.cards.forEach(card => {
+            if (card.dateStr === todayStr) {
+                card.title = "Today";
+            } else {
+                const [y, m, d] = card.dateStr.split('-').map(Number);
+                const dateObj = new Date(y, m - 1, d); 
+                card.title = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+        });
+        saveState();
+    }
+
+    function initTodayCard() {
+        const todayStr = getTodayString();
+        const existingCard = STATE.cards.find(c => c.dateStr === todayStr);
+        if (!existingCard) {
+            STATE.cards.push({
+                id: Date.now(),
+                dateStr: todayStr,
+                title: "Today",
+                tasks: []
+            });
+            STATE.cards.sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr));
+            saveState();
+        }
+    }
+
+    function addNextDay() {
+        STATE.cards.sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr));
+        let targetDate = null;
+        let foundGap = false;
+
+        for(let i=0; i < STATE.cards.length - 1; i++) {
+            const current = new Date(STATE.cards[i].dateStr);
+            const next = new Date(STATE.cards[i+1].dateStr);
+            const diffDays = Math.ceil(Math.abs(next - current) / (1000 * 60 * 60 * 24)); 
+
+            if (diffDays > 1) {
+                targetDate = new Date(current);
+                targetDate.setDate(targetDate.getDate() + 1); 
+                foundGap = true;
+                break;
+            }
+        }
+
+        if (!foundGap && STATE.cards.length > 0) {
+            const lastCard = STATE.cards[STATE.cards.length - 1];
+            targetDate = new Date(lastCard.dateStr);
+            targetDate.setDate(targetDate.getDate() + 1);
+        } else if (STATE.cards.length === 0) {
+            const t = new Date();
+            targetDate = t;
+        }
+        
+        const year = targetDate.getFullYear();
+        const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+        const day = String(targetDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        if (!STATE.cards.find(c => c.dateStr === dateStr)) {
+            const newId = Date.now();
+            STATE.cards.push({
+                id: newId,
+                dateStr: dateStr,
+                title: "Temp",
+                tasks: []
+            });
+            STATE.cards.sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr));
+            refreshCardTitles();
+            saveState();
+            renderCards();
+
+            setTimeout(() => {
+                const el = document.getElementById(`card-id-${newId}`);
+                if(el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }, 100);
+        } else {
+            alert("Next day already exists!");
+        }
+    }
+
+    function removeCard(index) {
+        if(confirm("Remove this day and all its tasks?")) {
+            STATE.cards.splice(index, 1);
+            saveState();
+            renderCards();
+            calculateStreak(); 
+        }
+    }
+
+    // --- Streak Logic ---
+    function calculateStreak() {
+        const todayStr = getTodayString();
+        const todayDate = new Date(todayStr);
+
+        const pastCards = STATE.cards.filter(c => new Date(c.dateStr) < todayDate);
+        pastCards.sort((a, b) => new Date(b.dateStr) - new Date(a.dateStr));
+
+        let streakDays = 0;
+        let expectedDate = new Date(todayDate);
+        expectedDate.setDate(expectedDate.getDate() - 1); 
+
+        for (let card of pastCards) {
+            const cardDate = new Date(card.dateStr);
+            if (cardDate.toISOString().split('T')[0] !== expectedDate.toISOString().split('T')[0]) {
+                break;
+            }
+            if (card.tasks.length === 0) {
+                break;
+            }
+            let perfectDay = true;
+            for (let t of card.tasks) {
+                if (!t.completed || t.failed || t.isGhost) {
+                    perfectDay = false;
+                    break;
+                }
+            }
+            if (perfectDay) {
+                streakDays++;
+                expectedDate.setDate(expectedDate.getDate() - 1);
+            } else {
+                break; 
+            }
+        }
+        currentStreakMult = 1.0 + (streakDays * 0.2);
+        renderHUD();
+    }
+
+    // --- XP & Leveling Logic ---
+    function getLevelCapacity(lvl) {
+        const base = parseInt(STATE.settings.baseReq) || 200;
+        const offset = parseInt(STATE.settings.offsetVal) || 0;
+        const val = Math.floor(base * Math.pow(1.1, lvl)) - offset;
+        return Math.max(10, val); 
+    }
+
+    function showXPTransaction(amount, type, isMultiplied = false) {
+        const el = document.getElementById('xp-transaction');
+        let text = (type === 'gain' ? '+' : '-') + Math.abs(amount) + ' XP';
+        if (type === 'gain' && isMultiplied && currentStreakMult > 1.0) {
+            text += ` (x${currentStreakMult.toFixed(1)})`;
+        }
+        el.textContent = text;
+        el.className = 'xp-trans';
+        void el.offsetWidth; 
+        el.classList.add(type === 'gain' ? 'show-gain' : 'show-loss');
+    }
+
+    // --- Moral Support Function ---
+    function triggerMoralSupport(type) {
+        const el = document.getElementById('moral-display');
+        const quotes = MORAL_QUOTES[type];
+        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+        
+        el.textContent = randomQuote;
+        el.className = 'moral-text'; 
+        
+        if (type === 'success') el.classList.add('moral-success');
+        else if (type === 'late') el.classList.add('moral-late');
+        else if (type === 'fail') el.classList.add('moral-fail');
+        
+        void el.offsetWidth; 
+        el.classList.add('show-anim');
+    }
+
+    function addXP(baseAmount) {
+        const totalAmount = Math.floor(baseAmount * currentStreakMult);
+        STATE.currentXP += totalAmount;
+        showXPTransaction(totalAmount, 'gain', true);
+        checkLevelUp();
+        saveState();
+        renderHUD();
+    }
+
+    function removeXP(amount) {
+        STATE.currentXP -= amount;
+        showXPTransaction(amount, 'loss');
+        while (STATE.currentXP < 0) {
+            if (STATE.level > 1) {
+                STATE.level--;
+                const prevLevelCapacity = getLevelCapacity(STATE.level);
+                STATE.currentXP += prevLevelCapacity;
+            } else {
+                STATE.currentXP = 0;
+                break;
+            }
+        }
+        saveState();
+        renderHUD();
+    }
+
+    function checkLevelUp() {
+        let capacity = getLevelCapacity(STATE.level);
+        while (STATE.currentXP >= capacity) {
+            STATE.currentXP -= capacity;
+            STATE.level++;
+            capacity = getLevelCapacity(STATE.level);
+            alert(`LEVEL UP! You are now Level ${STATE.level}`);
+        }
+    }
+
+    // --- Task Logic ---
+    function addTask(cardIndex) {
+        const name = prompt("Enter new quest name:");
+        if (!name) return;
+        STATE.cards[cardIndex].tasks.push({
+            id: Date.now(),
+            name: name,
+            xpReward: 100,
+            xpPenalty: 50,
+            delayPenalty: 10, 
+            workMax: 10,
+            doneVal: 0,
+            startTime: "09:00",
+            endTime: "10:00",
+            notes: "",
+            completed: false, 
+            late: false,
+            early: false,      
+            failed: false,
+            isGhost: false, 
+            doneTime: null,
+            lastXpGained: 0 
+        });
+        saveState();
+        renderCards();
+    }
+
+    function handleTickClick(cIndex, tIndex, e) {
+        e.stopPropagation();
+        const task = STATE.cards[cIndex].tasks[tIndex];
+        if (task.failed || task.isGhost) return; 
+
+        if (task.completed) {
+            if(confirm("Undo completion? This will revert XP.")) {
+                removeXP(task.lastXpGained || task.xpReward);
+                task.completed = false;
+                task.late = false;
+                task.early = false;
+                task.doneTime = null;
+                task.lastXpGained = 0;
+                saveState();
+                renderCards();
+                calculateStreak(); 
+            }
+        } else {
+            openFinishModal(cIndex, tIndex);
+        }
+    }
+
+    function openFinishModal(cIndex, tIndex) {
+        finishingRef = { c: cIndex, t: tIndex };
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        document.getElementById('modal-done-time').value = `${hh}:${mm}`;
+        document.getElementById('finish-modal').style.display = 'flex';
+    }
+
+    function closeFinishModal() {
+        document.getElementById('finish-modal').style.display = 'none';
+        finishingRef = null;
+    }
+
+    function confirmCompletion() {
+        if(!finishingRef) return;
+        const task = STATE.cards[finishingRef.c].tasks[finishingRef.t];
+        const doneTimeStr = document.getElementById('modal-done-time').value;
+        
+        task.doneTime = doneTimeStr;
+        task.completed = true;
+        
+        const doneMins = timeToMinutes(doneTimeStr);
+        const endMins = timeToMinutes(task.endTime);
+        const diff = doneMins - endMins; 
+        
+        const chunks = Math.floor(Math.abs(diff) / 10);
+        const penaltyValue = task.delayPenalty || 0;
+        const totalAdjustment = chunks * penaltyValue;
+
+        let finalBaseXP = task.xpReward;
+        let moralType = 'success';
+
+        if (diff < 0) {
+            // Early
+            task.late = false;
+            task.early = true;
+            finalBaseXP += totalAdjustment;
+        } else if (diff > 0) {
+            // Late
+            task.late = true;
+            task.early = false;
+            finalBaseXP -= totalAdjustment;
+            moralType = 'late';
+        } else {
+            // On Time
+            task.late = false;
+            task.early = false;
+        }
+
+        if (finalBaseXP < 0) finalBaseXP = 0;
+
+        task.lastXpGained = Math.floor(finalBaseXP * currentStreakMult); 
+        addXP(finalBaseXP); 
+        
+        // Trigger Moral Support
+        triggerMoralSupport(moralType);
+
+        saveState();
+        renderCards();
+        calculateStreak();
+        closeFinishModal();
+    }
+
+    function updateDoneValue(cIndex, tIndex, val) {
+        const task = STATE.cards[cIndex].tasks[tIndex];
+        if (task.isGhost) return; 
+        task.doneVal = parseInt(val) || 0;
+        const percent = Math.min(100, (task.doneVal / task.workMax) * 100);
+        const bar = document.getElementById(`prog-${task.id}`);
+        if(bar) bar.style.width = `${percent}%`;
+        const itemEl = document.getElementById(`item-${task.id}`);
+        updateItemVisuals(itemEl, task);
+        saveState();
+    }
+
+    function removeTask(cIndex, tIndex, e) {
+        e.stopPropagation();
+        if(confirm("Delete this quest?")) {
+            STATE.cards[cIndex].tasks.splice(tIndex, 1);
+            saveState();
+            renderCards();
+            calculateStreak();
+        }
+    }
+
+    // --- Edit / Reschedule Modal Logic ---
+    function openEditModal(cIndex, tIndex) {
+        editingRef = { c: cIndex, t: tIndex };
+        const task = STATE.cards[cIndex].tasks[tIndex];
+        
+        document.getElementById('modal-xp-reward').value = task.xpReward;
+        document.getElementById('modal-work-max').value = task.workMax;
+        document.getElementById('modal-start-time').value = task.startTime;
+        document.getElementById('modal-end-time').value = task.endTime;
+        document.getElementById('modal-xp-penalty').value = task.xpPenalty;
+        document.getElementById('modal-delay-penalty').value = task.delayPenalty;
+        document.getElementById('modal-notes').value = task.notes;
+
+        const rescheduleArea = document.getElementById('reschedule-area');
+        const incompleteBtn = document.getElementById('btn-mark-incomplete');
+        const saveBtn = document.querySelector('.btn-save');
+
+        if (task.isGhost) {
+            document.getElementById('edit-modal-title').textContent = "Ghost Task (Read Only)";
+            rescheduleArea.style.display = 'none';
+            incompleteBtn.style.display = 'none';
+            saveBtn.style.display = 'none'; 
+        } else if(task.failed) {
+            document.getElementById('edit-modal-title').textContent = "Quest Parameters";
+            rescheduleArea.style.display = 'block';
+            incompleteBtn.style.display = 'none';
+            saveBtn.style.display = 'block';
+            const tmrw = new Date();
+            tmrw.setDate(tmrw.getDate() + 1);
+            document.getElementById('reschedule-date').value = tmrw.toISOString().split('T')[0];
+        } else {
+            document.getElementById('edit-modal-title').textContent = "Quest Parameters";
+            rescheduleArea.style.display = 'none';
+            incompleteBtn.style.display = 'block';
+            saveBtn.style.display = 'block';
+        }
+
+        document.getElementById('edit-modal').style.display = 'flex';
+    }
+
+    function saveTaskChanges() {
+        if(!editingRef) return;
+        const task = STATE.cards[editingRef.c].tasks[editingRef.t];
+        if (task.isGhost) return;
+
+        task.xpReward = parseInt(document.getElementById('modal-xp-reward').value) || 0;
+        task.workMax = parseInt(document.getElementById('modal-work-max').value) || 1;
+        task.startTime = document.getElementById('modal-start-time').value;
+        task.endTime = document.getElementById('modal-end-time').value;
+        task.xpPenalty = parseInt(document.getElementById('modal-xp-penalty').value) || 0;
+        task.delayPenalty = parseInt(document.getElementById('modal-delay-penalty').value) || 0;
+        task.notes = document.getElementById('modal-notes').value;
+
+        const percent = Math.min(100, (task.doneVal / task.workMax) * 100);
+        const bar = document.getElementById(`prog-${task.id}`);
+        if(bar) bar.style.width = `${percent}%`;
+
+        document.getElementById('edit-modal').style.display = 'none';
+        saveState();
+        renderCards();
+    }
+
+    function markTaskIncomplete() {
+        if(!editingRef) return;
+        const task = STATE.cards[editingRef.c].tasks[editingRef.t];
+
+        if(confirm(`Mark as FAILED? Deduct ${task.xpPenalty} XP?`)) {
+            if(task.completed) {
+                removeXP(task.lastXpGained || 0);
+                task.completed = false;
+            }
+
+            task.failed = true;
+            removeXP(task.xpPenalty);
+            
+            triggerMoralSupport('fail');
+            
+            document.getElementById('edit-modal').style.display = 'none';
+            saveState();
+            renderCards();
+            calculateStreak(); 
+        }
+    }
+
+    function confirmReschedule() {
+        if (!editingRef) return;
+        const targetDate = document.getElementById('reschedule-date').value;
+        if (!targetDate) return;
+
+        const originalTask = STATE.cards[editingRef.c].tasks[editingRef.t];
+        const newTask = JSON.parse(JSON.stringify(originalTask));
+        newTask.id = Date.now();
+        newTask.failed = false;
+        newTask.completed = false;
+        newTask.late = false;
+        newTask.early = false;
+        newTask.doneVal = 0;
+        newTask.doneTime = null;
+        newTask.isGhost = false; 
+        newTask.lastXpGained = 0;
+
+        originalTask.isGhost = true;
+
+        let targetCard = STATE.cards.find(c => c.dateStr === targetDate);
+        if (!targetCard) {
+            targetCard = {
+                id: Date.now() + 1, 
+                dateStr: targetDate,
+                title: "Temp",
+                tasks: []
+            };
+            STATE.cards.push(targetCard);
+            STATE.cards.sort((a, b) => new Date(a.dateStr) - new Date(b.dateStr));
+            refreshCardTitles();
+        }
+
+        targetCard.tasks.push(newTask);
+        document.getElementById('edit-modal').style.display = 'none';
+        saveState();
+        renderCards();
+        calculateStreak(); 
+        alert(`Task moved to ${targetCard.title}. Original marked as Ghost.`);
+    }
+
+    // --- Settings / Backup ---
+    function openSettings() {
+        document.getElementById('set-base-req').value = STATE.settings.baseReq;
+        if (STATE.settings.offsetVal === undefined) STATE.settings.offsetVal = 0;
+        document.getElementById('set-offset-val').value = STATE.settings.offsetVal;
+        document.getElementById('settings-modal').style.display = 'flex';
+    }
+
+    function updateSettingsVal() {
+        STATE.settings.baseReq = parseInt(document.getElementById('set-base-req').value) || 200;
+        STATE.settings.offsetVal = parseInt(document.getElementById('set-offset-val').value) || 0;
+        saveState();
+        renderHUD();
+    }
+
+    function exportData() {
+        const dataStr = JSON.stringify(STATE, null, 2);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rpg_save.json`; 
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function importData(input) {
+        const file = input.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const newState = JSON.parse(e.target.result);
+                if(newState.level !== undefined && newState.cards !== undefined) {
+                    STATE = newState;
+                    refreshCardTitles(); 
+                    saveState();
+                    calculateStreak();
+                    renderHUD();
+                    renderCards();
+                    alert("Data restored successfully!");
+                    document.getElementById('settings-modal').style.display = 'none';
+                } else {
+                    alert("Invalid file format.");
+                }
+            } catch(err) {
+                alert("Error parsing file.");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // --- Rendering ---
+    function renderHUD() {
+        document.getElementById('level-display').textContent = `Level ${STATE.level}`;
+        const streakEl = document.getElementById('streak-display');
+        if (currentStreakMult > 1.0) {
+            streakEl.textContent = `Streak x${currentStreakMult.toFixed(1)}`;
+            streakEl.style.display = 'block';
+        } else {
+            streakEl.style.display = 'none';
+        }
+        const capacity = getLevelCapacity(STATE.level);
+        const safeXP = Math.max(0, STATE.currentXP);
+        const percent = Math.min(100, (safeXP / capacity) * 100);
+        document.getElementById('xp-bar').style.width = `${percent}%`;
+        document.getElementById('xp-text').textContent = `${Math.floor(safeXP)} / ${capacity} XP`;
+    }
+
+    function renderCards() {
+        const scroller = document.getElementById('card-scroller');
+        scroller.innerHTML = "";
+        
+        const todayStr = getTodayString();
+
+        STATE.cards.forEach((card, cIndex) => {
+            // Sort logic preserved
+            card.tasks.sort((a, b) => {
+                if (!a.startTime) return 1;
+                if (!b.startTime) return -1;
+                return a.startTime.localeCompare(b.startTime);
+            });
+
+            const cardEl = document.createElement('div');
+            const isToday = (card.dateStr === todayStr);
+            cardEl.className = `day-card ${isToday ? 'today-card' : ''}`;
+            cardEl.id = `card-id-${card.id}`; 
+            
+            if(isToday) cardEl.setAttribute('data-is-today', 'true');
+
+            const deleteBtnHtml = isToday 
+                ? '' 
+                : `<button class="remove-card-btn" onclick="removeCard(${cIndex})">×</button>`;
+
+            cardEl.innerHTML = `
+                <div class="card-header">
+                    <div class="date-title-display">${card.title}</div>
+                    ${deleteBtnHtml}
+                </div>
+                <div class="task-list"></div>
+                <button class="add-task-btn" onclick="addTask(${cIndex})">+ Add Quest</button>
+            `;
+
+            const listEl = cardEl.querySelector('.task-list');
+
+            card.tasks.forEach((task, tIndex) => {
+                const item = document.createElement('div');
+                item.className = 'task-item';
+                item.id = `item-${task.id}`;
+                updateItemVisuals(item, task);
+
+                const progressPercent = (task.doneVal / task.workMax) * 100;
+                let tickClass = 'btn-check';
+                if(task.completed) tickClass += ' is-checked';
+                if(task.late) tickClass += ' is-late';
+                
+                const tickIcon = task.completed ? '✔' : '';
+
+                item.innerHTML = `
+                    <div class="item-top">
+                        <div class="task-info-group">
+                            <span class="xp-badge">+${task.xpReward} XP</span>
+                            <span class="task-name">${task.name}</span>
+                            <span class="task-time">⏰ ${task.startTime} - ${task.endTime}</span>
+                        </div>
+                        <div class="item-controls">
+                            <button class="${tickClass}" onclick="handleTickClick(${cIndex}, ${tIndex}, event)">${tickIcon}</button>
+                            <div class="delete-x" onclick="removeTask(${cIndex}, ${tIndex}, event)">✕</div>
+                        </div>
+                    </div>
+                    <div class="item-bottom">
+                        <input type="number" class="done-input" value="${task.doneVal}"
+                            onclick="event.stopPropagation()"
+                            oninput="updateDoneValue(${cIndex}, ${tIndex}, this.value)">
+                        <div class="mini-progress-track">
+                            <div id="prog-${task.id}" class="mini-progress-fill" style="width: ${progressPercent}%"></div>
+                        </div>
+                    </div>
+                `;
+
+                item.addEventListener('click', () => openEditModal(cIndex, tIndex));
+                listEl.appendChild(item);
+            });
+
+            scroller.appendChild(cardEl);
+        });
+    }
+
+    function updateItemVisuals(el, task) {
+        el.classList.remove('red-state', 'green-state', 'yellow-state', 'orange-state', 'ghost-state');
+        if (task.isGhost) {
+            el.classList.add('ghost-state');
+        } else if (task.failed) {
+            el.classList.add('red-state');
+        } else if (task.late && task.completed) {
+            el.classList.add('orange-state');
+        } else if (task.completed) {
+            el.classList.add('green-state');
+        } else if (task.doneVal > 0) {
+            el.classList.add('yellow-state');
+        }
+    }
+
+    // --- Helpers ---
+    function scrollToToday() {
+        setTimeout(() => {
+            const todayEl = document.querySelector('[data-is-today="true"]');
+            if (todayEl) {
+                todayEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        }, 300); 
+    }
+
+    function timeToMinutes(timeStr) {
+        if(!timeStr) return 0;
+        const [h, m] = timeStr.split(':').map(Number);
+        return (h * 60) + m;
+    }
+
+    function saveState() {
+        localStorage.setItem('rpgTrackerPro', JSON.stringify(STATE));
+    }
+
+    function loadState() {
+        const data = localStorage.getItem('rpgTrackerPro');
+        if (data) {
+            STATE = JSON.parse(data);
+            if(!STATE.settings) {
+                STATE.settings = { baseReq: 200, offsetVal: 0 };
+            }
+        }
+    }
+
+    window.onclick = function(e) {
+        if (e.target.classList.contains('modal-overlay')) {
+            e.target.style.display = 'none';
+        }
+    }
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+    }
+
+</script>
+</body>
+</html>
